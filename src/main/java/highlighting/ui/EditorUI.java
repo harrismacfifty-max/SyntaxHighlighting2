@@ -2,6 +2,7 @@ package highlighting.ui;
 
 import highlighting.core.HighlightRegion;
 import highlighting.core.SyntaxHighlighter;
+import highlighting.antlr.PrettyPrinter;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
@@ -14,6 +15,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.*;
+
 
 public final class EditorUI {
 
@@ -102,26 +104,33 @@ public final class EditorUI {
   }
 
   private JMenuBar createMenuBar() {
-    var menuBar = new JMenuBar();
-    var fileMenu = new JMenu("Datei");
+  var menuBar = new JMenuBar();
+  var fileMenu = new JMenu("Datei");
+  var formatMenu = new JMenu("Format");
 
-    var openItem = new JMenuItem("Öffnen...");
-    openItem.addActionListener(e -> openFile());
+  var openItem = new JMenuItem("Öffnen...");
+  openItem.addActionListener(e -> openFile());
 
-    var saveItem = new JMenuItem("Speichern");
-    saveItem.addActionListener(e -> saveFile(false));
+  var saveItem = new JMenuItem("Speichern");
+  saveItem.addActionListener(e -> saveFile(false));
 
-    var saveAsItem = new JMenuItem("Speichern unter...");
-    saveAsItem.addActionListener(e -> saveFile(true));
+  var saveAsItem = new JMenuItem("Speichern unter...");
+  saveAsItem.addActionListener(e -> saveFile(true));
 
-    fileMenu.add(openItem);
-    fileMenu.add(saveItem);
-    fileMenu.add(saveAsItem);
+  var prettyPrintItem = new JMenuItem("Pretty Print...");
+  prettyPrintItem.addActionListener(e -> prettyPrintCurrentDocument());
 
-    menuBar.add(fileMenu);
+  fileMenu.add(openItem);
+  fileMenu.add(saveItem);
+  fileMenu.add(saveAsItem);
 
-    return menuBar;
-  }
+  formatMenu.add(prettyPrintItem);
+
+  menuBar.add(fileMenu);
+  menuBar.add(formatMenu);
+
+  return menuBar;
+}
 
   private void openFile() {
     var chooser = createFileChooser();
@@ -161,6 +170,64 @@ public final class EditorUI {
       setStatus("Fehler beim Speichern: " + ex.getMessage());
     }
   }
+
+private void prettyPrintCurrentDocument() {
+  Integer indentWidth = askIndentWidth();
+
+  if (indentWidth == null) {
+    setStatus("Formatieren abgebrochen");
+    return;
+  }
+
+  try {
+    String sourceCode = doc.getText(0, doc.getLength());
+    String formattedCode = PrettyPrinter.prettyPrint(sourceCode, indentWidth);
+
+    editorPane.setText(formattedCode);
+    setStatus("Code formatiert mit " + indentWidth + " Leerzeichen pro Einrückstufe");
+    scheduleHighlighting();
+  } catch (BadLocationException ex) {
+    setStatus("Fehler beim Lesen des Dokuments: " + ex.getMessage());
+  } catch (RuntimeException ex) {
+    var message = ex.getMessage();
+
+    if (message == null || message.isBlank()) {
+      message = "Unbekannter Fehler beim Formatieren";
+    }
+
+    setStatus("Fehler beim Formatieren: " + message);
+  }
+}
+
+private Integer askIndentWidth() {
+  String input =
+      JOptionPane.showInputDialog(
+          frame, "Leerzeichen pro Einrückstufe:", "Pretty Print", JOptionPane.QUESTION_MESSAGE);
+
+  if (input == null) {
+    return null;
+  }
+
+  input = input.trim();
+
+  if (input.isEmpty()) {
+    return 2;
+  }
+
+  try {
+    int indentWidth = Integer.parseInt(input);
+
+    if (indentWidth < 0) {
+      setStatus("Ungültige Einrückungsbreite: " + indentWidth);
+      return null;
+    }
+
+    return indentWidth;
+  } catch (NumberFormatException ex) {
+    setStatus("Einrückungsbreite muss eine ganze Zahl sein");
+    return null;
+  }
+}
 
   private JFileChooser createFileChooser() {
     var chooser = new JFileChooser();
