@@ -1,26 +1,63 @@
 package highlighting;
 
-import highlighting.antlr.*;
-import highlighting.core.SyntaxHighlighter;
-import highlighting.presets.Texts;
-import highlighting.regex.*;
-import highlighting.ui.EditorUI;
+import highlighting.antlr.PrettyPrinter;
+import java.util.List;
+import java.util.Scanner;
 
 public class Main {
 
   public static void main(String... args) {
-    // Phase I: RegexHighlighter
-    SyntaxHighlighter regex = new RegexHighlighter();
+    Scanner scanner = new Scanner(System.in);
 
-    // Phase II: ScanningHighlighter
-    SyntaxHighlighter scanning = new ScanningHighlighter();
+    System.out.print("Leerzeichen pro Einrückstufe eingeben (z.B. 2, 4 oder 8): ");
+    int indentWidth = readIndentWidth(scanner);
 
-    // Phase III: AntlrTokenCollector (tokenbasiert)
-    SyntaxHighlighter antlrToken = new AntlrTokenCollector();
+    List<Example> examples =
+        List.of(
+            new Example(
+                "Einfache Klasse mit Feld und Methode",
+                "public class Demo{private String name;public String getName(){return name;}}"),
+            new Example(
+                "Methode mit if/else und while",
+                "public class Control{public String run(){if(null)return \"empty\";else"
+                    + " while(null){return \"loop\";}}}"),
+            new Example(
+                "Verschachtelte Blöcke",
+                "public class Nested{public String test(){{{return \"deep\";}}}}"));
 
-    // and go ...
-    // EditorUI.show(Texts.START_TEXT, regex);
-    // EditorUI.show(Texts.START_TEXT, scanning);
-    EditorUI.show(Texts.START_TEXT, antlrToken);
+    for (Example example : examples) {
+      printExample(example, indentWidth);
+    }
   }
+
+  private static int readIndentWidth(Scanner scanner) {
+    if (!scanner.hasNextInt()) {
+      return 2;
+    }
+
+    int indentWidth = scanner.nextInt();
+
+    if (indentWidth < 0) {
+      return 2;
+    }
+
+    return indentWidth;
+  }
+
+  private static void printExample(Example example, int indentWidth) {
+    System.out.println();
+    System.out.println("=".repeat(80));
+    System.out.println(example.title());
+    System.out.println("=".repeat(80));
+
+    System.out.println();
+    System.out.println("Input:");
+    System.out.println(example.sourceCode());
+
+    System.out.println();
+    System.out.println("Pretty-Printer-Ausgabe:");
+    System.out.println(PrettyPrinter.prettyPrint(example.sourceCode(), indentWidth));
+  }
+
+  private record Example(String title, String sourceCode) {}
 }
