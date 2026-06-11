@@ -1,6 +1,7 @@
 package highlighting.antlr;
 
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 /// MiniJava Pretty Printer (minimal, stateful)
@@ -42,41 +43,152 @@ public final class PrettyPrinterVisitor extends MiniJavaBaseVisitor<Void> {
 
   @Override
   public Void visitCompilationUnit(MiniJavaParser.CompilationUnitContext ctx) {
-    // TODO:
-    // Produce a nicely structured compilation unit:
-    // - package declaration (if present),
-    // - import declarations (one per line),
-    // - type declarations (one after another),
-    // with sensible blank lines between these parts.
+    if (ctx.packageDecl() != null) {
+      visit(ctx.packageDecl());
+      nl();
+      nl();
+    }
+
+    for (MiniJavaParser.ImportDeclContext importDecl : ctx.importDecl()) {
+      visit(importDecl);
+      nl();
+    }
+
+    if (!ctx.importDecl().isEmpty() && !ctx.typeDecl().isEmpty()) {
+      nl();
+    }
+
+    for (int i = 0; i < ctx.typeDecl().size(); i++) {
+      visit(ctx.typeDecl(i));
+
+      if (i < ctx.typeDecl().size() - 1) {
+        nl();
+        nl();
+      }
+    }
+
     return null;
   }
 
   @Override
   public Void visitClassBody(MiniJavaParser.ClassBodyContext ctx) {
-    // TODO:
-    // Format the contents of a class body:
-    // - opening and closing brace,
-    // - one member declaration per line,
-    // - members indented relative to the class.
+    writeOpeningBrace();
+    nl();
+
+    currentIndent++;
+
+    for (MiniJavaParser.ClassBodyDeclarationContext declaration : ctx.classBodyDeclaration()) {
+      indent();
+      visit(declaration);
+      nlIfNeeded();
+    }
+
+    currentIndent--;
+
+    indent();
+    write("}");
+
     return null;
   }
 
   @Override
   public Void visitBlock(MiniJavaParser.BlockContext ctx) {
-    // TODO:
-    // Format a block:
-    // - opening and closing brace,
-    // - one blockStatement per line,
-    // - nested blocks indented further.
+    writeOpeningBrace();
+    nl();
+
+    currentIndent++;
+
+    for (MiniJavaParser.BlockStatementContext blockStatement : ctx.blockStatement()) {
+      indent();
+
+      if (blockStatement.statement() != null) {
+        visit(blockStatement.statement());
+      } else {
+        visit(blockStatement);
+        nlIfNeeded();
+      }
+    }
+
+    currentIndent--;
+
+    indent();
+    write("}");
+
     return null;
   }
 
   @Override
   public Void visitStatement(MiniJavaParser.StatementContext ctx) {
-    // TODO:
-    // Ensure that each statement (if/while/return/block/...) ends up
-    // on exactly one line, with proper indentation for nested statements.
+    if (ctx.block() != null) {
+      visit(ctx.block());
+      nl();
+      return null;
+    }
+
+    if (ctx.getStart().getType() == MiniJavaLexer.IF) {
+      visitConditionHeader(ctx);
+      writeNestedStatement(ctx.statement(0));
+
+      if (ctx.statement().size() > 1) {
+        indent();
+        write("else");
+        writeNestedStatement(ctx.statement(1));
+      }
+
+      return null;
+    }
+
+    if (ctx.getStart().getType() == MiniJavaLexer.WHILE) {
+      visitConditionHeader(ctx);
+      writeNestedStatement(ctx.statement(0));
+      return null;
+    }
+
+    visitChildren(ctx);
+    nl();
+
     return null;
+  }
+
+  private void visitConditionHeader(MiniJavaParser.StatementContext ctx) {
+    visit(ctx.getChild(0));
+    write(" ");
+
+    for (int i = 1; i < ctx.getChildCount(); i++) {
+      ParseTree child = ctx.getChild(i);
+
+      if (child instanceof MiniJavaParser.StatementContext) {
+        return;
+      }
+
+      visit(child);
+    }
+  }
+
+  private void writeNestedStatement(MiniJavaParser.StatementContext statement) {
+    if (statement.block() != null) {
+      visit(statement);
+      return;
+    }
+
+    nl();
+    currentIndent++;
+    visit(statement);
+    currentIndent--;
+  }
+
+  private void writeOpeningBrace() {
+    if (!atLineStart) {
+      write(" ");
+    }
+
+    write("{");
+  }
+
+  private void nlIfNeeded() {
+    if (!atLineStart) {
+      nl();
+    }
   }
 
   // ---------------- helper methods ----------------
